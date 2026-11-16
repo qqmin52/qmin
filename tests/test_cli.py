@@ -187,3 +187,64 @@ def test_run_loads_plugins_and_starts_bot(monkeypatch: pytest.MonkeyPatch) -> No
     assert bot.app_id == "102345678"
     assert bot.start_calls == 1
     assert bot.stop_calls == 1
+
+
+def test_api_without_config_exits(monkeypatch: pytest.MonkeyPatch) -> None:
+    """无配置时 api 退出码为 1，且不启动 uvicorn。"""
+    run_calls: list[tuple[object, dict[str, object]]] = []
+
+    def fake_run(app: object, **kwargs: object) -> None:
+        run_calls.append((app, kwargs))
+
+    monkeypatch.setattr(core.cli.uvicorn, "run", fake_run)
+
+    result = runner.invoke(core.cli.app, ["api"])
+
+    assert result.exit_code == 1
+    assert run_calls == []
+    assert "app_id" in result.output
+
+
+def test_api_starts_panel_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    """api 只启动管理面板：加载插件、构建应用、不构造 QminBot。"""
+    Path(".env").write_text(COMPLETE_ENV, encoding="utf-8")
+
+    plugin_calls: list[Path] = []
+
+    async def fake_load_plugins(plugin_dir: Path) -> list[object]:
+        plugin_calls.append(plugin_dir)
+        return []
+
+    create_calls: list[tuple[object, Path]] = []
+
+    def fake_create_app(*, settings: object, plugin_dir: Path) -> object:
+        create_calls.append((settings, plugin_dir))
+        return object()
+
+    run_calls: list[dict[str, object]] = []
+
+    def fake_run(app: object, **kwargs: object) -> None:
+        run_calls.append({"app": app, **kwargs})
+
+    class ExplodingBot:
+        def __init__(self, **kwargs: object) -> None:
+            raise AssertionError("api 命令不得构造 QminBot")
+
+    monkeypatch.setattr(core.cli, "load_plugins", fake_load_plugins)
+    monkeypatch.setattr(core.cli, "create_app", fake_create_app)
+    monkeypatch.setattr(core.cli.uvicorn, "run", fake_run)
+    monkeypatch.setattr(core.cli, "QminBot", ExplodingBot)
+
+    result = runner.invoke(core.cli.app, ["api"])
+
+    assert result.exit_code == 0, result.output
+    assert "管理面板: http://127.0.0.1:8000" in result.output
+
+    assert len(plugin_calls) == 1
+    assert plugin_calls[0] == Path("plugins")
+    assert len(create_calls) == 1
+
+    assert len(run_calls) == 1
+    assert run_calls[0]["host"] == "127.0.0.1"
+    assert run_calls[0]["port"] == 8000
+    assert run_calls[0]["log_level"] == "info"

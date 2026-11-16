@@ -148,6 +148,45 @@ def run(ctx: typer.Context) -> None:
         raise typer.Exit(0) from None
 
 
+@app.command()
+def api(ctx: typer.Context) -> None:
+    """只启动管理面板，不连接 QQ（不会占用机器人登录）。"""
+    env_file, plugin_dir = _paths(ctx)
+
+    ensure_admin_token(env_file)
+    try:
+        settings = load_settings(env_file)
+    except ConfigError as exc:
+        typer.echo(exc.hint, err=True)
+        raise typer.Exit(1) from None
+
+    typer.echo(f"管理面板: http://{settings.host}:{settings.port}")
+
+    async def _prepare() -> object:
+        """加载插件并构建管理面板应用（让面板能看到插件状态）。"""
+        await load_plugins(plugin_dir)
+        return create_app(settings=settings, plugin_dir=plugin_dir)
+
+    try:
+        # ``uvicorn.run`` 内部会自行调用 asyncio.run；若把它放进协程里执行，
+        # 会触发 RuntimeError: asyncio.run() cannot be called from a running event loop，
+        # 因此异步准备工作先跑完，再在事件循环之外启动服务。
+        panel_app = asyncio.run(_prepare())
+        uvicorn.run(
+            panel_app,
+            host=settings.host,
+            port=settings.port,
+            log_level=settings.log_level.lower(),
+        )
+    except KeyboardInterrupt:
+        typer.echo("已停止")
+        raise typer.Exit(0) from None
+
+
 def main() -> None:
     """控制台入口。"""
     app()
+
+
+if __name__ == "__main__":
+    main()
