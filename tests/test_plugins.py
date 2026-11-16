@@ -122,6 +122,26 @@ async def test_disable_then_enable_plugin(tmp_path: Path) -> None:
     assert await router.dispatch(make_event()) == 1
 
 
+async def test_disable_clears_loaded_and_handler_count(tmp_path: Path) -> None:
+    """禁用插件后 loaded 与 handler_count 归零，重新启用后恢复。"""
+    write_plugin(tmp_path, "demo", HANDLER_PLUGIN)
+    await load_plugins(tmp_path)
+
+    disabled = await set_plugin_enabled("demo", False, plugin_dir=tmp_path)
+
+    assert disabled.enabled is False
+    assert disabled.loaded is False
+    assert disabled.handler_count == 0
+    assert disabled.error is None
+    assert router.count_by_source("demo") == 0
+
+    enabled = await set_plugin_enabled("demo", True, plugin_dir=tmp_path)
+
+    assert enabled.enabled is True
+    assert enabled.loaded is True
+    assert enabled.handler_count == 1
+
+
 async def test_missing_directory_is_created(tmp_path: Path) -> None:
     """目录不存在时自动创建并返回空列表。"""
     target = tmp_path / "plugins_missing"

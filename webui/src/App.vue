@@ -3,8 +3,10 @@ import { ref } from "vue";
 import { clearToken, getToken, setToken } from "./api";
 import DashboardView from "./views/DashboardView.vue";
 import LogsView from "./views/LogsView.vue";
+import PluginsView from "./views/PluginsView.vue";
+import SettingsView from "./views/SettingsView.vue";
 
-type ViewName = "dashboard" | "logs";
+type ViewName = "dashboard" | "logs" | "plugins" | "settings";
 
 const token = ref(getToken());
 const tokenInput = ref("");
@@ -75,6 +77,18 @@ function onUnauthorized(): void {
         <el-tab-pane label="日志" name="logs">
           <LogsView
             v-if="activeTab === 'logs'"
+            @unauthorized="onUnauthorized"
+          />
+        </el-tab-pane>
+        <el-tab-pane label="插件" name="plugins">
+          <PluginsView
+            v-if="activeTab === 'plugins'"
+            @unauthorized="onUnauthorized"
+          />
+        </el-tab-pane>
+        <el-tab-pane label="设置" name="settings">
+          <SettingsView
+            v-if="activeTab === 'settings'"
             @unauthorized="onUnauthorized"
           />
         </el-tab-pane>

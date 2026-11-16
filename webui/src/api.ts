@@ -1,4 +1,11 @@
-import type { LogsResponse, StatusResponse } from "./types";
+import type {
+  ConfigOut,
+  ConfigUpdateRequest,
+  LogsResponse,
+  PluginInfo,
+  PluginListResponse,
+  StatusResponse,
+} from "./types";
 
 export const TOKEN_KEY = "qmin_admin_token";
 
@@ -18,6 +25,13 @@ export class UnauthorizedError extends Error {
   constructor(message = "unauthorized") {
     super(message);
     this.name = "UnauthorizedError";
+  }
+}
+
+export class NotFoundError extends Error {
+  constructor(message = "not found") {
+    super(message);
+    this.name = "NotFoundError";
   }
 }
 
@@ -44,5 +58,59 @@ export async function fetchLogs(
 ): Promise<LogsResponse> {
   return apiGet<LogsResponse>(
     `/api/logs?limit=${limit}&after_seq=${afterSeq}`,
+  );
+}
+
+async function apiSend<T>(
+  method: "POST" | "PUT",
+  path: string,
+  body: unknown,
+): Promise<T> {
+  const response = await fetch(path, {
+    method,
+    headers: {
+      "X-Admin-Token": getToken(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (response.status === 401) {
+    throw new UnauthorizedError();
+  }
+  if (response.status === 404) {
+    throw new NotFoundError();
+  }
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+  return (await response.json()) as T;
+}
+
+export async function fetchPlugins(): Promise<PluginListResponse> {
+  return apiGet<PluginListResponse>("/api/plugins");
+}
+
+export async function togglePlugin(
+  name: string,
+  enabled: boolean,
+): Promise<PluginInfo> {
+  return apiSend<PluginInfo>(
+    "POST",
+    `/api/plugins/${encodeURIComponent(name)}/toggle`,
+    { enabled },
+  );
+}
+
+export async function fetchConfig(): Promise<ConfigOut> {
+  return apiGet<ConfigOut>("/api/config");
+}
+
+export async function updateConfig(
+  payload: ConfigUpdateRequest,
+): Promise<{ saved: boolean; restart_required: boolean }> {
+  return apiSend<{ saved: boolean; restart_required: boolean }>(
+    "PUT",
+    "/api/config",
+    payload,
   );
 }

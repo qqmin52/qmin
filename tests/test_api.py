@@ -117,6 +117,8 @@ async def test_toggle_plugin_removes_and_restores_handlers(
     )
     assert disabled.status_code == 200
     assert disabled.json()["enabled"] is False
+    assert disabled.json()["loaded"] is False
+    assert disabled.json()["handler_count"] == 0
     assert router.count_by_source("hello") == 0
 
     listed = await client.get("/api/plugins", headers=auth())

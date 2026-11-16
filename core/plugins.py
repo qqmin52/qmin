@@ -159,8 +159,13 @@ async def set_plugin_enabled(
         raise KeyError(name)
 
     if not enabled:
+        # 先切换状态（插件不存在时抛 KeyError，此时不摘处理器），再卸载处理器，
+        # 最后把 loaded/handler_count 一并归零，避免面板展示过期的加载状态。
+        updated = await runtime.toggle_plugin(name, False)
         target_router.unregister_source(name)
-        return await runtime.toggle_plugin(name, False)
+        final = replace(updated, loaded=False, handler_count=0, error=None)
+        await _upsert_state_plugin(runtime, final)
+        return final
 
     record = _load_plugin_file(plugin_dir / f"{name}{PLUGIN_SUFFIX}", target_router)
     if record.error is not None:

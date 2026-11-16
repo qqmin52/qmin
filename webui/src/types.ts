@@ -23,3 +23,35 @@ export interface LogsResponse {
   total: number;
   latest_seq: number;
 }
+
+export interface PluginInfo {
+  name: string;
+  enabled: boolean;
+  loaded: boolean;
+  handler_count: number;
+  error: string | null;
+}
+
+export interface PluginListResponse {
+  items: PluginInfo[];
+  total: number;
+}
+
+export interface ConfigOut {
+  app_id: string;
+  app_secret: string;
+  host: string;
+  port: number;
+  log_level: string;
+  db_path: string;
+  admin_token_set: boolean;
+}
+
+export interface ConfigUpdateRequest {
+  app_id?: string;
+  app_secret?: string;
+  host?: string;
+  port?: number;
+  log_level?: string;
+  db_path?: string;
+}
