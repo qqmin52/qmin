@@ -23,6 +23,7 @@ htmlcov/
 # 前端依赖与构建产物
 webui/node_modules/
 webui/dist/
+# api/static 为前端构建产物，可由 webui/ 重建，不纳入版本控制
 api/static/
 
 # 编辑器 / 系统

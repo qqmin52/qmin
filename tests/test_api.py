@@ -275,3 +275,31 @@ async def test_logs_after_seq_empty_returns_after_seq(
     data = response.json()
     assert data["items"] == []
     assert data["latest_seq"] == 7
+
+
+async def test_static_panel_is_served(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """静态面板挂载在 /，且不会吞掉 /api 路由。"""
+    static_dir = tmp_path / "api" / "static"
+    static_dir.mkdir(parents=True)
+    (static_dir / "index.html").write_text(
+        "<!DOCTYPE html><html><body>Qmin static panel</body></html>",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("api.main.STATIC_DIR", static_dir)
+
+    env_file = tmp_path / ".env"
+    env_file.write_text(ENV_TEXT, encoding="utf-8")
+    settings = load_settings(env_file)
+    app = create_app(settings=settings, plugin_dir=tmp_path / "plugins")
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        page = await client.get("/")
+        assert page.status_code == 200
+        assert "Qmin static panel" in page.text
+
+        health = await client.get("/api/health")
+        assert health.status_code == 200
+        assert health.json() == {"status": "ok"}
