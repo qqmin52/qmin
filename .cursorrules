@@ -1,0 +1,75 @@
+# Qmin（简Q）—— 极简 QQ 官方机器人框架
+
+面向新手的 QQ 官方机器人框架，目标是"半小时跑通第一个机器人"。
+底层走腾讯 QQ 开放平台官方 Bot API（AppID + AppSecret），不做任何协议逆向。
+
+## 技术栈（依赖白名单，新增依赖必须先说明理由）
+
+- Python 3.11+，asyncio
+- qq-botpy-sdk（PyPI 包名，import 名为 `botpy`；**不要**用旧版 tencent-connect/botpy）
+- FastAPI + pydantic v2 + uvicorn
+- SQLite（aiosqlite 或 SQLModel）
+- 前端：Vue 3 + Vite + Element Plus，构建产物输出到 `api/static/`
+- 测试：pytest + pytest-asyncio
+
+## 分层架构（严格遵守，禁止跨层）
+
+- `core/`：框架内核。连接管理、事件模型、处理器注册、插件加载、运行时状态。
+  **不得 import `api/`**。
+- `api/`：FastAPI 管理接口。只通过 `core/state.py` 暴露的接口读状态，
+  不直接碰 botpy 细节。
+- `webui/`：Vue 3 面板。只通过 `/api/*` 通信。
+- `plugins/`：示例插件，每个文件即一个插件。
+- `tests/`
+
+## 目录结构
+
+```
+qmin/
+├── core/{__init__,bot,events,handlers,plugins,state,config}.py
+├── api/{main,schema}.py, api/routes/{status,config,plugins,logs}.py, api/static/
+├── webui/
+├── plugins/hello.py
+├── tests/
+├── docs/qq/            # 官方文档精选（events/intents/api-message/limits/errors）
+├── .env.example
+└── pyproject.toml
+```
+
+## 第一版 MVP 范围（不扩展）
+
+config / bot / handlers / events / plugins / state / api / webui 骨架 /
+plugins/hello.py / `qmin init` 与 `qmin run` 两个 CLI 入口。
+
+## 安全基线（必须遵守）
+
+- API 默认只绑 `127.0.0.1`。
+- 首次启动生成随机 admin token 并打印到控制台；写操作校验 `X-Admin-Token`，
+  比较时用 `secrets.compare_digest`。
+- 写操作要求 `Content-Type: application/json`，并校验 `Origin`。
+- `/api/config` 返回 AppSecret 永远打码，不允许明文回传。
+- 不实现任何 QQ 账号登录、扫码、协议逆向逻辑。
+
+## 编码规范
+
+- 所有公开函数有类型注解；pydantic v2。
+- 所有 IO 用 async；禁止在 async 函数中调用阻塞库。
+  唯一刻意例外：`core/config.py::ensure_admin_token`（同步写 .env，必须原子写：
+  同目录临时文件 → `os.replace`，新建文件在 POSIX 下 `chmod 0o600`）。
+  该函数只允许在 CLI 启动路径调用，**禁止在 FastAPI 路由 / 事件 handler 中调用**。
+- 异常必须隔离：handler 异常打印「插件名 | 事件类型 | 错误摘要」，不吞掉。
+- 涉及 QQ 官方 API 字段时，以 `docs/qq/` 为准；**不要凭记忆编造字段、intent、错误码**。
+- 注释用中文，变量名用英文。
+
+## 禁止事项
+
+- 不一次性生成整个项目，按模块逐个交付。
+- 不引入白名单外依赖，除非先说明理由。
+- 不写协议逆向、模拟客户端登录相关代码。
+- 不在 `core/` 里 import `api/`。
+- 不发明官方 API 不存在的字段。
+
+## 工作方式
+
+- 每个模块先给「改动文件清单 + 关键接口签名」，确认后再写代码。
+- 每个模块交付时同时给出对应的 pytest 用例。
