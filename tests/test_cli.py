@@ -47,7 +47,7 @@ def test_init_creates_env_file() -> None:
     result = runner.invoke(
         core.cli.app,
         ["init"],
-        input="102345678\nsecret-value\n\n\n\n",
+        input="102345678\nsecret-value\n\n\n\n\n",
     )
 
     assert result.exit_code == 0, result.output
@@ -55,6 +55,7 @@ def test_init_creates_env_file() -> None:
     content = env_file.read_text(encoding="utf-8")
     assert "APP_ID=102345678" in content
     assert "ADMIN_TOKEN=" in content
+    assert "DB_PATH=qmin.db" in content
 
     settings = load_settings(env_file)
     assert settings.app_id == "102345678"

@@ -59,6 +59,9 @@ def init(
     host = typer.prompt("HOST", default="127.0.0.1")
     port = typer.prompt("PORT", default="8000")
     log_level = typer.prompt("LOG_LEVEL", default="INFO")
+    db_path = typer.prompt(
+        "SQLite 路径（管理面板暂无数据库功能，保留默认即可）", default="qmin.db"
+    )
 
     write_env_file(
         env_file,
@@ -68,6 +71,7 @@ def init(
             "HOST": host,
             "PORT": port,
             "LOG_LEVEL": log_level,
+            "DB_PATH": db_path,
         },
     )
     ensure_admin_token(env_file)
