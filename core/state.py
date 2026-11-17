@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Literal
@@ -63,6 +64,9 @@ class PluginRecord:
         loaded: 是否已成功加载进当前进程。
         handler_count: 该插件注册的处理器数量。
         error: 加载或运行失败的摘要；成功时为 ``None``。
+        display_name: 插件自报的显示名（``__plugin_name__``）；未声明为 ``None``。
+        description: 插件自报的描述（``__description__``）；未声明为 ``None``。
+        version: 插件自报的版本（``__version__``）；未声明为 ``None``。
     """
 
     name: str
@@ -71,6 +75,9 @@ class PluginRecord:
     loaded: bool = False
     handler_count: int = 0
     error: str | None = None
+    display_name: str | None = None
+    description: str | None = None
+    version: str | None = None
 
 
 @dataclass(slots=True, frozen=True)
@@ -110,6 +117,7 @@ class RuntimeState:
         self._seq: int = 0
         self._connected: bool = False
         self._started_at: datetime | None = None
+        self._sink: Callable[[LogEntry], None] | None = None
 
     # ---------- 连接状态 ----------
 
@@ -124,14 +132,19 @@ class RuntimeState:
         return self._started_at
 
     async def set_connected(self, connected: bool) -> None:
-        """更新连接状态；首次置 ``True`` 时记录启动时间。
+        """更新连接状态；状态切换时重置启动时间。
+
+        置 ``True`` 时把 ``started_at`` 重置为当前时间（运行时长从 0 开始计）；
+        置 ``False`` 时把 ``started_at`` 置 ``None``（未连接状态不显示时长）。
 
         Args:
             connected: 新的连接状态。
         """
         async with self._lock:
-            if connected and self._started_at is None:
+            if connected:
                 self._started_at = datetime.now(timezone.utc)
+            else:
+                self._started_at = None
             self._connected = connected
 
     # ---------- 插件 ----------
@@ -172,8 +185,19 @@ class RuntimeState:
 
     # ---------- 日志 ----------
 
+    def set_sink(self, sink: Callable[[LogEntry], None] | None) -> None:
+        """设置日志落盘 sink；传 ``None`` 解除。
+
+        sink 必须是**同步**函数且只做入队（禁止 ``await``）——它会在
+        :meth:`add_log` 的调用链里执行，任何阻塞都会拖慢日志写入方。
+
+        Args:
+            sink: 接收 :class:`LogEntry` 的同步回调，或 ``None``。
+        """
+        self._sink = sink
+
     async def add_log(self, level: LogLevel, source: str, message: str) -> LogEntry:
-        """写入一条日志到环形缓冲。
+        """写入一条日志到环形缓冲，并同步投递给 sink（若已设置）。
 
         Args:
             level: 日志级别。
@@ -193,7 +217,15 @@ class RuntimeState:
                 message=message,
             )
             self._logs.append(entry)
-            return entry
+
+        sink = self._sink
+        if sink is not None:
+            try:
+                sink(entry)
+            except Exception:
+                # 落盘故障绝不能影响日志写入方（机器人 / 面板）。
+                pass
+        return entry
 
     def recent_logs(self, limit: int = LOG_BUFFER_SIZE) -> list[LogEntry]:
         """按时间升序返回最近的日志，最新的一条在末尾。

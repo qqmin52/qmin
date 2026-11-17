@@ -221,3 +221,63 @@ async def test_rate_limit_defaults_to_none() -> None:
     QminBot(app_id="1", app_secret="s")
 
     assert FakeClient.instances[-1].rate_limit is None
+
+
+async def test_inbound_log_strips_leading_space() -> None:
+    """消息内容带前导空格时，入站日志已 strip。"""
+    bot = QminBot(app_id="1", app_secret="s")
+    inbound = make_inbound("group")
+    inbound.content = "   你好  "
+
+    await bot._on_message(inbound)
+
+    messages = [entry.message for entry in get_state().recent_logs()]
+    assert "收到群消息 | 会话 group-1 | 内容 你好" in messages
+    assert all("  你好" not in message for message in messages)
+
+
+async def test_inbound_log_omits_content_when_disabled() -> None:
+    """log_message_content=False 时只记录会话，不记录正文。"""
+    bot = QminBot(app_id="1", app_secret="s", log_message_content=False)
+
+    await bot._on_message(make_inbound("group"))
+
+    messages = [entry.message for entry in get_state().recent_logs()]
+    inbound_logs = [message for message in messages if "收到群消息" in message]
+    assert inbound_logs == ["收到群消息 | 会话 group-1"]
+    assert all("你好" not in message for message in inbound_logs)
+
+
+async def test_group_add_event_is_logged() -> None:
+    """机器人被拉进群时写一条 INFO。"""
+    bot = QminBot(app_id="1", app_secret="s")
+
+    await bot._on_group_add_robot(SimpleNamespace(group_openid="group-abc"))
+
+    messages = [entry.message for entry in get_state().recent_logs()]
+    assert "机器人被加入群 | 群 group-abc" in messages
+
+
+async def test_group_del_event_is_logged_without_group_info() -> None:
+    """退群事件取不到群 ID 时写"群信息不可用"。"""
+    bot = QminBot(app_id="1", app_secret="s")
+
+    await bot._on_group_del_robot(SimpleNamespace())
+
+    messages = [entry.message for entry in get_state().recent_logs()]
+    assert "机器人被移出群 | 群信息不可用" in messages
+
+
+async def test_raw_event_fallback_logs_group_event_once() -> None:
+    """SDK 不认具体事件名时，从原始事件兜底识别，且同类型只记一条。"""
+    bot = QminBot(app_id="1", app_secret="s")
+    bot._group_events_bound = False
+    event = SimpleNamespace(
+        event_type="GROUP_ADD_ROBOT", data=SimpleNamespace(group_openid="g-9")
+    )
+
+    await bot._on_raw_event(event)
+    await bot._on_raw_event(event)
+
+    messages = [entry.message for entry in get_state().recent_logs()]
+    assert messages.count("机器人被加入群 | 群 g-9") == 1

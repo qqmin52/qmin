@@ -15,6 +15,7 @@ from core.config import (
     ConfigError,
     Settings,
     ensure_admin_token,
+    generate_admin_token,
     load_settings,
     missing_config_hint,
     read_env_file,
@@ -298,3 +299,38 @@ def test_invalid_port_raises_readable_error(tmp_path: Path) -> None:
 
     assert exc_info.value.missing == ["PORT"]
     assert "PORT" in str(exc_info.value)
+
+
+def test_generate_admin_token_is_idempotent_replaces_not_appends(
+    tmp_path: Path,
+) -> None:
+    """generate_admin_token 在令牌已存在时原地替换，文件里 ADMIN_TOKEN 只出现一次。"""
+    env_file = write_env(
+        tmp_path,
+        "APP_ID=102345678\n"
+        "ADMIN_TOKEN=old-token\n",
+    )
+
+    first = generate_admin_token(env_file)
+    second = generate_admin_token(env_file)
+
+    assert first != second
+    content = env_file.read_text(encoding="utf-8")
+    # ADMIN_TOKEN 只出现一次
+    assert content.count("ADMIN_TOKEN=") == 1
+    assert f"ADMIN_TOKEN={second}" in content
+    # 旧令牌被替换
+    assert "old-token" not in content
+    # 其他键保持不动
+    assert "APP_ID=102345678" in content
+    # 长度合理
+    assert 40 <= len(second) <= 64
+
+
+def test_generate_admin_token_does_not_print(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """generate_admin_token 纯文件副作用，不打印控制台。"""
+    env_file = write_env(tmp_path, "APP_ID=1\n")
+    generate_admin_token(env_file)
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == ""

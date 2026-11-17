@@ -28,6 +28,46 @@ def fresh_state() -> Iterator[None]:
     reset_state()
 
 
+async def test_set_sink_receives_every_log_and_ring_still_works() -> None:
+    """set_sink 后每条日志都投递给 sink，且仍然进入内存环形缓冲。"""
+    state = get_state()
+    received: list[LogEntry] = []
+    state.set_sink(received.append)
+
+    entry = await state.add_log("INFO", "test", "落盘测试")
+
+    assert len(received) == 1
+    assert received[0].message == "落盘测试"
+    assert state.recent_logs()[-1] is entry
+    assert state.snapshot().log_count == 1
+
+
+async def test_set_sink_none_detaches() -> None:
+    """传 None 后不再投递。"""
+    state = get_state()
+    received: list[LogEntry] = []
+    state.set_sink(received.append)
+    state.set_sink(None)
+
+    await state.add_log("INFO", "test", "解除后")
+
+    assert received == []
+    assert state.snapshot().log_count == 1
+
+
+async def test_sink_exception_does_not_break_add_log() -> None:
+    """sink 抛异常不能影响日志写入方。"""
+    state = get_state()
+
+    def boom(_entry: LogEntry) -> None:
+        raise RuntimeError("sink failed")
+
+    state.set_sink(boom)
+    entry = await state.add_log("INFO", "test", "仍然写入")
+    assert entry.message == "仍然写入"
+    assert state.snapshot().log_count == 1
+
+
 def test_singleton_returns_same_object_and_reset_creates_new() -> None:
     """get_state 多次调用返回同一对象；reset_state 之后是新对象。"""
     first = get_state()
@@ -118,10 +158,17 @@ async def test_uptime_is_zero_before_connect_and_tracked_after() -> None:
     assert snapshot.uptime_seconds >= 0.0
 
     started_at = state.started_at
+    assert started_at is not None
     await state.set_connected(False)
 
-    assert state.started_at == started_at
+    # 新语义：disconnected 后 started_at 清为 None（运行时长归 0）
+    assert state.started_at is None
     assert state.snapshot().uptime_seconds == 0.0
+
+    # 再连接 → started_at 重新记时间
+    await state.set_connected(True)
+    assert state.started_at is not None
+    assert state.started_at >= started_at  # 时间向后推进
 
 
 async def test_reset_state_restarts_seq_from_one() -> None:

@@ -39,7 +39,7 @@ qmin/
 ## 第一版 MVP 范围（不扩展）
 
 config / bot / handlers / events / plugins / state / api / webui 骨架 /
-plugins/hello.py / `qmin init` 与 `qmin run` 两个 CLI 入口。
+plugins/hello.py / `qmin init` / `qmin start` / `qmin token` 三个 CLI 入口。
 
 ## 安全基线（必须遵守）
 
@@ -54,9 +54,10 @@ plugins/hello.py / `qmin init` 与 `qmin run` 两个 CLI 入口。
 
 - 所有公开函数有类型注解；pydantic v2。
 - 所有 IO 用 async；禁止在 async 函数中调用阻塞库。
-  唯一刻意例外：`core/config.py::ensure_admin_token`（同步写 .env，必须原子写：
-  同目录临时文件 → `os.replace`，新建文件在 POSIX 下 `chmod 0o600`）。
-  该函数只允许在 CLI 启动路径调用，**禁止在 FastAPI 路由 / 事件 handler 中调用**。
+  同步写 .env 只允许两个入口——`core/config.py::ensure_admin_token`（CLI 启动路径专用，
+  生成后打印到控制台）与 `core/config.py::generate_admin_token`（CLI 与 FastAPI 路由通用，
+  原子写、不打印、不记 RuntimeState）。二者底层都走原子写：
+  同目录临时文件 → `os.replace`，新建文件在 POSIX 下 `chmod 0o600`。
 - 异常必须隔离：handler 异常打印「插件名 | 事件类型 | 错误摘要」，不吞掉。
 - 涉及 QQ 官方 API 字段时，以 `docs/qq/` 为准；**不要凭记忆编造字段、intent、错误码**。
 - 注释用中文，变量名用英文。

@@ -1,38 +1,54 @@
 """管理接口的 FastAPI 依赖：令牌、Content-Type 与 Origin 校验。
 
 - 依赖敏感的配置（管理令牌、端口）一律通过闭包注入，不使用模块级可变状态。
-- 本模块不读取运行时状态，也不持有任何全局 settings 副本。
+- 管理令牌校验每次从 ``env_file`` 读取，保证 setup POST 写新 token 后立刻生效。
 """
 
 from __future__ import annotations
 
 import secrets
 from collections.abc import Callable
+from pathlib import Path
 
-from fastapi import Header, HTTPException
+from fastapi import Header, HTTPException, Request
 
-from core.config import Settings
+from core.config import Settings, UNCONFIGURED_TOKEN, read_env_file
 
 
 def make_admin_token_dependency(settings: Settings) -> Callable[..., None]:
     """构造校验 ``X-Admin-Token`` 的依赖。
 
+    每次请求先读 ``request.app.state.env_file`` 里的 ADMIN_TOKEN，
+    找不到再回退到进程环境变量（即 settings 里加载的）。
+    哨兵值 ``UNCONFIGURED_TOKEN``（qmin api 占位模式的 Settings 默认值）
+    永不被视为合法令牌——.env 与环境变量都缺失时直接 401。
+
     Args:
-        settings: 已加载的配置，管理令牌从这里取。
+        settings: 已加载的配置；仅作为环境变量的回退来源。
 
     Returns:
         无返回值的依赖函数；令牌缺失或与配置不一致时抛 401。
     """
 
     def require_admin_token(
+        request: Request,
         x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
     ) -> None:
         """校验请求头中的管理令牌。"""
-        expected = settings.admin_token.get_secret_value()
+        env_file: Path = getattr(request.app.state, "env_file", Path(".env"))
+        latest = dict(read_env_file(env_file)).get("ADMIN_TOKEN", "").strip()
+        if not latest:
+            # .env 无令牌 → 回退到 settings（进程环境变量），但拒绝哨兵值。
+            fallback = settings.admin_token.get_secret_value().strip()
+            if fallback and fallback != UNCONFIGURED_TOKEN:
+                latest = fallback
+        if not latest:
+            raise HTTPException(
+                status_code=401, detail="admin token not configured"
+            )
         provided = x_admin_token or ""
-        # 统一转 bytes 再比较，避免非 ASCII 头值让 compare_digest 抛 TypeError。
         if not secrets.compare_digest(
-            provided.encode("utf-8"), expected.encode("utf-8")
+            provided.encode("utf-8"), latest.encode("utf-8")
         ):
             raise HTTPException(status_code=401, detail="invalid admin token")
 

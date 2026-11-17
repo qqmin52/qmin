@@ -56,6 +56,8 @@ def test_init_creates_env_file() -> None:
     assert "APP_ID=102345678" in content
     assert "ADMIN_TOKEN=" in content
     assert "DB_PATH=qmin.db" in content
+    assert "qmin start" in result.output
+    assert "qmin token" in result.output
 
     settings = load_settings(env_file)
     assert settings.app_id == "102345678"
@@ -104,122 +106,14 @@ def test_doctor_reports_complete_config() -> None:
     assert "OK" in result.output
 
 
-def test_run_without_config_exits_before_bot(
+def test_start_without_config_enters_setup_wizard(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """配置缺失时 run 退出码为 1，且不构造 QminBot。"""
-    created: list[dict[str, object]] = []
+    """配置缺失时 start 用占位配置启动面板，且不自动连接机器人。"""
+    create_calls: list[dict[str, object]] = []
 
-    class RecordingBot:
-        def __init__(self, **kwargs: object) -> None:
-            created.append(kwargs)
-
-    monkeypatch.setattr(core.cli, "QminBot", RecordingBot)
-
-    result = runner.invoke(core.cli.app, ["run"])
-
-    assert result.exit_code == 1
-    assert created == []
-
-
-def test_run_loads_plugins_and_starts_bot(monkeypatch: pytest.MonkeyPatch) -> None:
-    """配置完整时 run 加载插件、启动机器人并同时启动管理 API。"""
-    Path(".env").write_text(COMPLETE_ENV, encoding="utf-8")
-
-    plugin_calls: list[Path] = []
-
-    async def fake_load_plugins(plugin_dir: Path) -> list[object]:
-        plugin_calls.append(plugin_dir)
-        return []
-
-    create_calls: list[tuple[object, Path]] = []
-
-    def fake_create_app(*, settings: object, plugin_dir: Path) -> object:
-        create_calls.append((settings, plugin_dir))
-        return object()
-
-    class FakeServer:
-        instances: list["FakeServer"] = []
-
-        def __init__(self, config: object) -> None:
-            self.config = config
-            self.should_exit = False
-            self.serve_calls = 0
-            FakeServer.instances.append(self)
-
-        async def serve(self) -> None:
-            self.serve_calls += 1
-
-    created: list["FakeBot"] = []
-
-    class FakeBot:
-        def __init__(self, *, app_id: str, app_secret: str) -> None:
-            self.app_id = app_id
-            self.app_secret = app_secret
-            self.start_calls = 0
-            self.stop_calls = 0
-            created.append(self)
-
-        async def start(self) -> None:
-            self.start_calls += 1
-
-        async def stop(self) -> None:
-            self.stop_calls += 1
-
-    monkeypatch.setattr(core.cli, "load_plugins", fake_load_plugins)
-    monkeypatch.setattr(core.cli, "QminBot", FakeBot)
-    monkeypatch.setattr(core.cli, "create_app", fake_create_app)
-    monkeypatch.setattr(core.cli.uvicorn, "Server", FakeServer)
-
-    result = runner.invoke(core.cli.app, ["run"])
-
-    assert result.exit_code == 0, result.output
-    assert "管理面板: http://127.0.0.1:8000" in result.output
-    assert len(plugin_calls) == 1
-    assert len(create_calls) == 1
-
-    assert len(FakeServer.instances) == 1
-    server = FakeServer.instances[0]
-    assert server.serve_calls == 1
-    assert server.should_exit is True
-
-    assert len(created) == 1
-    bot = created[0]
-    assert bot.app_id == "102345678"
-    assert bot.start_calls == 1
-    assert bot.stop_calls == 1
-
-
-def test_api_without_config_exits(monkeypatch: pytest.MonkeyPatch) -> None:
-    """无配置时 api 退出码为 1，且不启动 uvicorn。"""
-    run_calls: list[tuple[object, dict[str, object]]] = []
-
-    def fake_run(app: object, **kwargs: object) -> None:
-        run_calls.append((app, kwargs))
-
-    monkeypatch.setattr(core.cli.uvicorn, "run", fake_run)
-
-    result = runner.invoke(core.cli.app, ["api"])
-
-    assert result.exit_code == 1
-    assert run_calls == []
-    assert "app_id" in result.output
-
-
-def test_api_starts_panel_only(monkeypatch: pytest.MonkeyPatch) -> None:
-    """api 只启动管理面板：加载插件、构建应用、不构造 QminBot。"""
-    Path(".env").write_text(COMPLETE_ENV, encoding="utf-8")
-
-    plugin_calls: list[Path] = []
-
-    async def fake_load_plugins(plugin_dir: Path) -> list[object]:
-        plugin_calls.append(plugin_dir)
-        return []
-
-    create_calls: list[tuple[object, Path]] = []
-
-    def fake_create_app(*, settings: object, plugin_dir: Path) -> object:
-        create_calls.append((settings, plugin_dir))
+    def fake_create_app(**kwargs: object) -> object:
+        create_calls.append(kwargs)
         return object()
 
     run_calls: list[dict[str, object]] = []
@@ -227,25 +121,131 @@ def test_api_starts_panel_only(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_run(app: object, **kwargs: object) -> None:
         run_calls.append({"app": app, **kwargs})
 
-    class ExplodingBot:
-        def __init__(self, **kwargs: object) -> None:
-            raise AssertionError("api 命令不得构造 QminBot")
+    monkeypatch.setattr(core.cli, "create_app", fake_create_app)
+    monkeypatch.setattr(core.cli.uvicorn, "run", fake_run)
+
+    result = runner.invoke(core.cli.app, ["start"])
+
+    assert result.exit_code == 0, result.output
+    assert "配置不完整" in result.output
+    assert "配置向导" in result.output
+    assert len(run_calls) == 1
+    assert create_calls[0]["auto_start_bot"] is False
+    assert create_calls[0]["bot_manager"] is not None
+
+
+def test_start_with_config_autostarts_bot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """配置完整时创建应用并传 auto_start_bot=True，CLI 自己不启动机器人。"""
+    Path(".env").write_text(COMPLETE_ENV, encoding="utf-8")
+
+    plugin_calls: list[Path] = []
+
+    async def fake_load_plugins(plugin_dir: Path) -> list[object]:
+        plugin_calls.append(plugin_dir)
+        return []
+
+    create_calls: list[dict[str, object]] = []
+
+    def fake_create_app(**kwargs: object) -> object:
+        create_calls.append(kwargs)
+        return object()
+
+    run_calls: list[dict[str, object]] = []
+
+    def fake_run(app: object, **kwargs: object) -> None:
+        run_calls.append({"app": app, **kwargs})
 
     monkeypatch.setattr(core.cli, "load_plugins", fake_load_plugins)
     monkeypatch.setattr(core.cli, "create_app", fake_create_app)
     monkeypatch.setattr(core.cli.uvicorn, "run", fake_run)
-    monkeypatch.setattr(core.cli, "QminBot", ExplodingBot)
 
-    result = runner.invoke(core.cli.app, ["api"])
+    result = runner.invoke(core.cli.app, ["start"])
 
     assert result.exit_code == 0, result.output
     assert "管理面板: http://127.0.0.1:8000" in result.output
-
-    assert len(plugin_calls) == 1
-    assert plugin_calls[0] == Path("plugins")
-    assert len(create_calls) == 1
-
-    assert len(run_calls) == 1
+    assert "正在连接机器人" in result.output
+    assert plugin_calls == [Path("plugins")]
+    assert create_calls[0]["auto_start_bot"] is True
+    assert create_calls[0]["bot_manager"] is not None
+    # 机器人生命周期交给 lifespan，CLI 层不得直接构造 QminBot。
+    assert not hasattr(core.cli, "QminBot")
     assert run_calls[0]["host"] == "127.0.0.1"
     assert run_calls[0]["port"] == 8000
     assert run_calls[0]["log_level"] == "info"
+
+
+def test_legacy_commands_removed() -> None:
+    """旧版 api / run 已合并为 start，不再存在。"""
+    for legacy in ("api", "run"):
+        result = runner.invoke(core.cli.app, [legacy])
+        assert result.exit_code != 0
+        assert "No such command" in result.output
+
+
+def test_token_copies_to_clipboard(monkeypatch: pytest.MonkeyPatch) -> None:
+    """默认复制到剪贴板，输出不含令牌明文。"""
+    Path(".env").write_text("ADMIN_TOKEN=token-value\n", encoding="utf-8")
+    monkeypatch.setattr(core.cli, "_copy_to_clipboard", lambda text: True)
+
+    result = runner.invoke(core.cli.app, ["token"])
+
+    assert result.exit_code == 0, result.output
+    assert "已复制" in result.output
+    assert "token-value" not in result.output
+
+
+def test_token_show_prints_plaintext() -> None:
+    """--show 直接打印明文，供脚本或无剪贴板环境使用。"""
+    Path(".env").write_text("ADMIN_TOKEN=token-value\n", encoding="utf-8")
+
+    result = runner.invoke(core.cli.app, ["token", "--show"])
+
+    assert result.exit_code == 0, result.output
+    assert "token-value" in result.output
+
+
+def test_token_without_admin_token_exits_1() -> None:
+    """既无 .env 令牌也无环境变量时退出码为 1，并提示先 init。"""
+    result = runner.invoke(core.cli.app, ["token"])
+
+    assert result.exit_code == 1
+    assert "qmin init" in result.output
+
+
+def test_token_falls_back_to_plaintext_when_clipboard_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """剪贴板不可用时降级打印明文并提示手动复制。"""
+    Path(".env").write_text("ADMIN_TOKEN=token-value\n", encoding="utf-8")
+    monkeypatch.setattr(core.cli, "_copy_to_clipboard", lambda text: False)
+
+    result = runner.invoke(core.cli.app, ["token"])
+
+    assert result.exit_code == 0, result.output
+    assert "请手动复制" in result.output
+    assert "token-value" in result.output
+
+
+def test_token_reads_environment_variable(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`.env` 没有令牌时回退到进程环境变量。"""
+    monkeypatch.setenv("ADMIN_TOKEN", "env-token")
+
+    result = runner.invoke(core.cli.app, ["token", "--show"])
+
+    assert result.exit_code == 0, result.output
+    assert "env-token" in result.output
+
+
+def test_copy_to_clipboard_swallows_missing_command(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """剪贴板命令不存在时返回 False，不把异常抛给用户。"""
+
+    def fake_run(*args: object, **kwargs: object) -> None:
+        raise FileNotFoundError("clip")
+
+    monkeypatch.setattr(core.cli.subprocess, "run", fake_run)
+
+    assert core.cli._copy_to_clipboard("token") is False

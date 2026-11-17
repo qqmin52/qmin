@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from api.deps import (
     make_admin_token_dependency,
@@ -15,7 +15,7 @@ from api.deps import (
     require_json_content_type,
 )
 from api.schema import ConfigOut, ConfigUpdateRequest
-from core.config import Settings, read_env_file, write_env_file
+from core.config import ConfigError, Settings, load_settings, read_env_file, write_env_file
 
 DEFAULT_ENV_FILE = Path(".env")
 
@@ -36,7 +36,8 @@ def create_router(
     """创建配置路由。
 
     Args:
-        settings: 已加载的配置；读取与合并都以它为基线。
+        settings: 已加载的配置（用于构造令牌 / Origin 校验依赖；路由函数体
+            不再直接引用 settings，每次都从 ``request.app.state.settings`` 取最新）。
         env_file: ``.env`` 路径，更新时写回这里。
 
     Returns:
@@ -51,9 +52,10 @@ def create_router(
         response_model=ConfigOut,
         dependencies=[require_token],
     )
-    async def read_config() -> ConfigOut:
-        """返回脱敏后的配置。"""
-        return ConfigOut(**settings.to_public_dict())
+    async def read_config(request: Request) -> ConfigOut:
+        """返回脱敏后的配置。基线是最近一次 load_settings 的结果（setup / put 后会刷新）。"""
+        live: Settings = getattr(request.app.state, "settings", settings)
+        return ConfigOut(**live.to_public_dict())
 
     @router.put(
         "",
@@ -63,21 +65,32 @@ def create_router(
             require_origin,
         ],
     )
-    async def update_config(payload: ConfigUpdateRequest) -> dict[str, bool]:
+    async def update_config(
+        payload: ConfigUpdateRequest, request: Request
+    ) -> dict[str, bool]:
         """合并更新 ``.env``，不热重载当前进程配置。
 
         以现有 ``.env`` 为基线：payload 中为 ``None`` 的字段不覆盖，
-        未知键原样保留；管理令牌始终保留原值（缺失时用当前配置补齐）。
+        未知键原样保留；ADMIN_TOKEN 始终保留 .env 原值（绝不从占位 settings 兜底）。
         """
         values = dict(read_env_file(env_file))
         for field, value in payload.model_dump(exclude_none=True).items():
             values[_FIELD_TO_ENV[field]] = str(value)
 
-        values.setdefault("ADMIN_TOKEN", settings.admin_token.get_secret_value())
-        values.setdefault("APP_ID", settings.app_id)
-        values.setdefault("APP_SECRET", settings.app_secret.get_secret_value())
+        # ADMIN_TOKEN、APP_ID、APP_SECRET 都只保留 .env 原值；占位 settings
+        # （如 "unconfigured"）禁止写入 .env。
+        values.setdefault("ADMIN_TOKEN", "")
+        values.setdefault("APP_ID", "")
+        values.setdefault("APP_SECRET", "")
 
         write_env_file(env_file, values)
+
+        # 与 setup 一致：刷新 app.state.settings，让随后 GET /config 读最新值。
+        try:
+            request.app.state.settings = load_settings(env_file)
+        except ConfigError:
+            pass
+
         return {"saved": True, "restart_required": True}
 
     return router

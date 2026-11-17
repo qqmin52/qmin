@@ -5,7 +5,7 @@ Qmin（简Q）：极简 QQ 官方机器人框架，新手半小时跑通第一�
 ## 特性
 
 - **官方 API，零封号风险**：完全基于 QQ 开放平台官方 Bot API（AppID + AppSecret），不涉及协议逆向。
-- **装饰器写插件**：一个函数 + 一个装饰器就是插件，丢进 `plugins/` 即生效。
+- **装饰器写插件**：一个函数 + 一个装饰器就是插件，在面板里安装即生效；手动放文件后需重启。
 - **自带 Web 管理面板**：仪表盘、日志、插件开关、配置修改，开箱即用。
 - **异常隔离**：单个插件加载失败或运行报错只记录日志，不影响其他插件与主进程。
 - **依赖少**：纯 Python 实现，核心依赖仅 FastAPI、uvicorn、qq-botpy、typer、pydantic。
@@ -36,13 +36,17 @@ source .venv/bin/activate
 
 ```bash
 pip install -e .
+cd webui && npm install && npm run build
+cd ..
 qmin init
 qmin doctor
-qmin run
+qmin start
 ```
 
-`qmin init` 会依次询问 APP_ID、APP_SECRET、HOST、PORT、LOG_LEVEL、DB_PATH，并自动生成管理令牌写入 `.env`。
-`qmin doctor` 用于检查配置是否完整，`qmin run` 同时启动机器人与管理面板。
+> 仓库不包含前端构建产物，首次使用需构建一次（Windows 下 npm 命令请用 `npm.cmd`）。未构建时访问面板地址只会看到一段 JSON 提示，不影响 `qmin start` 启动。
+
+`qmin init` 会依次询问 APP_ID、APP_SECRET、HOST、PORT、LOG_LEVEL、DB_PATH，并自动生成管理令牌写入 `.env`，之后可用 `qmin token` 复制令牌。
+`qmin doctor` 用于检查配置是否完整，`qmin start` 一条命令启动面板并自动连接机器人（配置不完整时会直接进入配置向导）。
 
 ## 写第一个插件
 
@@ -60,13 +64,14 @@ async def hello(event) -> None:
     await event.reply("你好呀")
 ```
 
-丢进 `plugins/` 目录即生效，在管理面板的「插件」页可随时禁用或重新启用。
+在管理面板「插件」页安装即生效；手动放进 `plugins/` 目录的文件需重启后才会加载。面板里可随时禁用、重新加载或删除插件。
+
+也可以打开面板「插件 → 安装插件」直接粘贴代码，保存后立即生效。
 
 ## 管理面板
 
-- `qmin run`：同时启动机器人与管理面板，默认地址 <http://127.0.0.1:8000>。
-- `qmin api`：只启动管理面板，不连接 QQ，不会占用机器人登录。
-- 首次使用需要输入管理令牌，令牌位于 `.env` 文件的 `ADMIN_TOKEN`。
+- `qmin start`：一条命令启动管理面板；配置完整时自动连接机器人，配置缺失时进入配置向导模式，默认地址 <http://127.0.0.1:8000>。
+- 首次使用需要输入管理令牌，可用 `qmin token` 复制，或从 `.env` 的 `ADMIN_TOKEN` 读取。
 - 面板包含四个页面：仪表盘（连接状态、运行时长、插件数、日志数）、日志（增量轮询 + 暂停滚动）、插件（启用/禁用开关与加载错误）、设置（修改配置并写入 `.env`）。
 
 ## 命令一览
@@ -75,8 +80,10 @@ async def hello(event) -> None:
 | --- | --- |
 | `qmin init` | 交互式生成 `.env`，并自动创建管理令牌。 |
 | `qmin doctor` | 只读检查配置与插件目录，不写文件、不发网络请求。 |
-| `qmin run` | 加载插件，同时启动机器人与管理 API。 |
-| `qmin api` | 只启动管理面板，不连接 QQ（不会占用机器人登录）。 |
+| `qmin start` | 一条命令启动：有配置自动连机器人，没配置进入配置向导。 |
+| `qmin token` | 复制管理令牌到剪贴板；加 `--show` 直接打印明文。 |
+
+> 旧版 `qmin run` / `qmin api` 已合并为 `qmin start`。
 
 ## 配置项
 
@@ -96,7 +103,7 @@ async def hello(event) -> None:
 群里必须 @ 机器人，普通聊天不会触发。被动回复需在收到消息后 5 分钟内完成。
 
 **管理面板打不开？**
-确认 `qmin` 或 `qmin api` 正在运行，并访问终端打印的地址。令牌错误时页面会退回令牌输入界面。
+确认 `qmin start` 正在运行，并访问终端打印的地址。令牌错误时页面会退回令牌输入界面。
 
 **插件没生效？**
 执行 `qmin doctor` 查看插件文件数量，再到面板「日志」页查看加载错误信息。
