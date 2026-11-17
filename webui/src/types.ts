@@ -22,6 +22,7 @@ export interface LogsResponse {
   items: LogItem[];
   total: number;
   latest_seq: number;
+  buffer_total: number;
 }
 
 export interface PluginInfo {
@@ -30,6 +31,15 @@ export interface PluginInfo {
   loaded: boolean;
   handler_count: number;
   error: string | null;
+  display_name: string | null;
+  description: string | null;
+  version: string | null;
+}
+
+export interface InstallPluginRequest {
+  name: string;
+  code: string;
+  overwrite?: boolean;
 }
 
 export interface PluginListResponse {
@@ -54,4 +64,30 @@ export interface ConfigUpdateRequest {
   port?: number;
   log_level?: string;
   db_path?: string;
+}
+
+export interface SetupStatusResponse {
+  configured: boolean;
+  missing: string[];
+}
+
+export interface SetupRequest {
+  app_id: string;
+  app_secret: string;
+}
+
+export interface SetupResponse {
+  configured: boolean;
+  admin_token: string | null;
+  token_already_existed: boolean;
+  restart_required: boolean;
+}
+
+export interface BotStatusResponse {
+  running: boolean;
+}
+
+export interface BotActionResult {
+  started: boolean;
+  error: string | null;
 }

@@ -1,0 +1,191 @@
+/* 设计基线：颜色、圆角、阴影、间距统一走这里，页面里禁止散落硬编码色值。 */
+
+:root {
+  /* 基础色 */
+  --q-bg: #f6f7f9;
+  --q-surface: #ffffff;
+  --q-border: #e5e7eb;
+  --q-text: #111827;
+  --q-text-2: #6b7280;
+  --q-text-3: #9ca3af;
+
+  /* 主色与语义色 */
+  --q-primary: #4f46e5;
+  --q-primary-soft: #eef2ff;
+  --q-success: #16a34a;
+  --q-warning: #d97706;
+  --q-danger: #dc2626;
+
+  /* 圆角 */
+  --q-radius-sm: 6px;
+  --q-radius: 10px;
+  --q-radius-lg: 14px;
+
+  /* 阴影 */
+  --q-shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --q-shadow: 0 1px 3px rgba(16, 24, 40, 0.1);
+
+  /* 间距 */
+  --q-space-1: 4px;
+  --q-space-2: 8px;
+  --q-space-3: 12px;
+  --q-space-4: 16px;
+  --q-space-5: 20px;
+  --q-space-6: 24px;
+
+  /* 字号 */
+  --q-font-12: 12px;
+  --q-font-13: 13px;
+  --q-font-14: 14px;
+  --q-font-16: 16px;
+  --q-font-20: 20px;
+  --q-font-24: 24px;
+
+  /* Element Plus 主色覆盖 */
+  --el-color-primary: var(--q-primary);
+  --el-color-primary-light-3: #6366f1;
+  --el-color-primary-light-5: #818cf8;
+  --el-color-primary-light-7: #c7d2fe;
+  --el-color-primary-light-8: #ddd6fe;
+  --el-color-primary-light-9: var(--q-primary-soft);
+  --el-color-primary-dark-2: #4338ca;
+  --el-color-success: var(--q-success);
+  --el-color-warning: var(--q-warning);
+  --el-color-danger: var(--q-danger);
+  --el-color-error: var(--q-danger);
+
+  /* Element Plus 文本 / 边框 / 背景 */
+  --el-text-color-primary: var(--q-text);
+  --el-text-color-regular: var(--q-text-2);
+  --el-text-color-secondary: var(--q-text-3);
+  --el-border-color: var(--q-border);
+  --el-border-color-light: var(--q-border);
+  --el-border-color-lighter: var(--q-border);
+  --el-bg-color: var(--q-surface);
+  --el-bg-color-overlay: var(--q-surface);
+  --el-fill-color-blank: var(--q-surface);
+  --el-fill-color-light: var(--q-bg);
+
+  /* Element Plus 圆角 / 字体 */
+  --el-border-radius-base: var(--q-radius-sm);
+  --el-border-radius-small: var(--q-radius-sm);
+  --el-font-size-base: var(--q-font-14);
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--q-bg);
+  color: var(--q-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Microsoft YaHei", Arial, sans-serif;
+  font-size: var(--q-font-14);
+  line-height: 1.5;
+  /* 任何宽度都不出现横向滚动条 */
+  overflow-x: hidden;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+code {
+  padding: 1px 5px;
+  border-radius: var(--q-radius-sm);
+  background: var(--q-bg);
+  border: 1px solid var(--q-border);
+  font-size: 0.92em;
+}
+
+/* ---------- Element Plus 细节统一 ---------- */
+
+.el-button {
+  font-weight: 500;
+}
+
+.el-input__wrapper,
+.el-select__wrapper,
+.el-textarea__inner {
+  border-radius: var(--q-radius-sm);
+}
+
+.el-input-number {
+  width: 100%;
+}
+
+.el-card {
+  border-radius: var(--q-radius);
+  border-color: var(--q-border);
+  box-shadow: var(--q-shadow-sm);
+}
+
+.el-table {
+  --el-table-border-color: var(--q-border);
+  --el-table-header-bg-color: var(--q-bg);
+  --el-table-header-text-color: var(--q-text-2);
+  --el-table-row-hover-bg-color: #fafbfc;
+  font-size: var(--q-font-13);
+}
+
+.el-table th.el-table__cell {
+  font-weight: 500;
+}
+
+.el-tag {
+  border-radius: var(--q-radius-sm);
+}
+
+.el-message-box {
+  border-radius: var(--q-radius);
+}
+
+/* ---------- 通用小部件 ---------- */
+
+/* 日志级别胶囊（仪表盘 / 日志页共用） */
+.q-pill {
+  display: inline-block;
+  flex: none;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--q-border);
+  background: var(--q-bg);
+  color: var(--q-text-2);
+  font-size: var(--q-font-12);
+  font-weight: 500;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.q-pill--info,
+.q-pill--debug {
+  color: var(--q-text-2);
+  background: var(--q-bg);
+}
+
+.q-pill--warning {
+  color: var(--q-warning);
+  border-color: color-mix(in srgb, var(--q-warning) 26%, var(--q-surface));
+  background: color-mix(in srgb, var(--q-warning) 9%, var(--q-surface));
+}
+
+.q-pill--error {
+  color: var(--q-danger);
+  border-color: color-mix(in srgb, var(--q-danger) 26%, var(--q-surface));
+  background: color-mix(in srgb, var(--q-danger) 8%, var(--q-surface));
+}
+
+/* 等宽数字 / 时间 */
+.q-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
