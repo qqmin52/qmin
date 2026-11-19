@@ -84,3 +84,49 @@ jobs:
             exit 1
           fi
           echo "未发现 .env、数据库或 api/static/ 构建产物"
+
+  wheel:
+    name: wheel
+    runs-on: ubuntu-latest
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: webui/package-lock.json
+
+      - name: 安装前端依赖
+        working-directory: webui
+        run: npm ci
+
+      - name: 构建前端
+        working-directory: webui
+        run: npm run build
+
+      - name: 安装 Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: 安装构建工具
+        run: pip install build
+
+      - name: 构建 wheel
+        run: python -m build --wheel
+
+      - name: 断言 wheel 内含面板
+        run: |
+          python - <<'PY'
+          import glob, zipfile, sys
+          whl = glob.glob("dist/*.whl")[0]
+          names = zipfile.ZipFile(whl).namelist()
+          assert any(n.endswith("api/static/index.html") for n in names), names
+          print("wheel OK:", whl)
+          PY
+

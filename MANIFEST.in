@@ -1,0 +1,2 @@
+recursive-include api/static *
+include README.md

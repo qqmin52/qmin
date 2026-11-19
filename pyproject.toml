@@ -34,3 +34,7 @@ pythonpath = ["."]
 
 [tool.setuptools.packages.find]
 include = ["core*", "api*"]
+
+# 把前端构建产物（api/static）打进 wheel：安装后 qmin start 直接有面板。
+[tool.setuptools.package-data]
+api = ["static/*", "static/**/*"]

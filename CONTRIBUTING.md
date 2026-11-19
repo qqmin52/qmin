@@ -28,6 +28,8 @@ npm.cmd run build            # 产物输出到 api/static/
 3. **不要提交本地文件**：`.env`、`qmin.db`、`node_modules/`、`api/static/`、日志文件都已在 `.gitignore` 里，
    `git status` 提交前看一眼。
 4. **没有自动化测试覆盖的改动，必须在 PR 里写手动验证步骤和实际输出**——这是硬性要求，见下文。
+5. **发版前**：先 `npm.cmd run build`（生成面板产物），再 `python -m build`，并确认 wheel 里
+   包含 `api/static/index.html`（`unzip -l dist/qmin-*.whl` 可查）。
 
 ## CI
 

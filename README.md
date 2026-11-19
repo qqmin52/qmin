@@ -16,13 +16,23 @@
 
 ## 快速开始
 
-环境要求：Python 3.11 及以上；如果需要 Web 面板，再装 Node.js 18+。
+环境要求：Python 3.11 及以上；需要 Web 面板时再装 Node.js 18+。
 
-### 最短路径：3 分钟跑起机器人（不需要构建前端）
+### Windows 一键安装（推荐）
 
-> [!IMPORTANT]
-> **不构建前端也能直接跑机器人。** Web 面板只是可选的可视化管理界面：没有构建产物时
-> `qmin start` 照常启动机器人、照常收发群消息，只是浏览器打开面板地址会看到一段 JSON 提示。
+在仓库根目录双击 `setup.cmd`（或在终端执行 `.\setup.cmd`），脚本会：
+
+1. 找到 Python 3.11+，创建 `.venv`（已存在则复用）
+2. 安装依赖（`pip install -e .`）
+3. 检测到 Node.js 就自动构建 Web 面板；没有则跳过，机器人功能不受影响
+4. `.env` 不存在时自动执行 `qmin init`，引导填写 APP_ID / APP_SECRET
+
+脚本可重复执行，已完成的步骤会自动跳过；任何一步失败会立即停止并打印失败的命令。
+
+### 手动步骤（macOS / Linux 与排错）
+
+不构建前端也能直接跑机器人：Web 面板只是可选的可视化管理界面，没有构建产物时
+`qmin start` 照常启动机器人、照常收发群消息，只是浏览器打开面板地址会看到一段 JSON 提示。
 
 ```bash
 git clone https://github.com/qqmin52/qmin.git
@@ -34,6 +44,16 @@ pip install -e .
 qmin init     # 按提示填 APP_ID / APP_SECRET 等，自动生成管理令牌
 qmin doctor   # 检查配置是否完整
 qmin start    # 启动：有配置自动连机器人，没配置进入配置向导
+```
+
+### 用 wheel 安装（不 clone）
+
+从 GitHub Release 下载 `qmin-0.1.0-py3-none-any.whl` 后直接安装即可，面板已打包在 wheel 内：
+
+```bash
+pip install qmin-0.1.0-py3-none-any.whl
+qmin doctor
+qmin start
 ```
 
 `qmin doctor` 成功时输出（退出码 0）：

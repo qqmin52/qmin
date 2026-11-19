@@ -25,8 +25,8 @@ from core.config import Settings
 from core.logstore import LogStore, LogStoreError
 from core.state import get_state
 
-# 前端构建产物目录；不存在时不挂载。
-STATIC_DIR = Path("api/static")
+# 前端构建产物目录；按包文件定位，保证安装成 wheel 后在任意工作目录都能找到面板。
+STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 
 def create_app(

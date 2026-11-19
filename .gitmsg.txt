@@ -1,0 +1,10 @@
+feat: 面板打进 wheel + Windows 一键安装
+
+- STATIC_DIR 改为按包定位，安装成 wheel 后在任意工作目录都能找到面板
+- pyproject 增加 package-data，MANIFEST.in 收录 api/static
+- CI 新增 wheel job：构建前端 → 打包 → 断言 wheel 内含 index.html
+- 新增 release 工作流：tag 触发构建并上传 wheel 到 GitHub Release
+- 新增 setup.cmd / scripts/setup.ps1：建 venv、装依赖、可选构建面板、自动 init
+- README 快速开始改为一键安装 / 手动步骤 / wheel 安装三段
+- CONTRIBUTING 补发版前构建检查
+- 新增测试：STATIC_DIR 必须位于 api 包内

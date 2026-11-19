@@ -307,6 +307,13 @@ async def test_logs_latest_seq_zero_when_buffer_empty(
     assert data["latest_seq"] >= 0
 
 
+def test_static_dir_is_inside_api_package() -> None:
+    """面板目录必须跟着包走：wheel 安装后在任意工作目录都能定位到。"""
+    import api.main
+
+    assert api.main.STATIC_DIR == Path(api.main.__file__).parent / "static"
+
+
 async def test_static_panel_is_served(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
