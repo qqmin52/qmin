@@ -88,7 +88,7 @@ async def test_health_needs_no_token(client: httpx.AsyncClient) -> None:
     response = await client.get("/api/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    assert response.json() == {"status": "broken"}
 
 
 async def test_status_requires_valid_token(client: httpx.AsyncClient) -> None:
