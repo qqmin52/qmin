@@ -29,6 +29,12 @@ npm.cmd run build            # 产物输出到 api/static/
    `git status` 提交前看一眼。
 4. **没有自动化测试覆盖的改动，必须在 PR 里写手动验证步骤和实际输出**——这是硬性要求，见下文。
 
+## CI
+
+每个 PR 都会跑 GitHub Actions：pytest（Linux / Windows × Python 3.11 / 3.13）、
+前端构建、敏感文件检查。三个 job 全绿才合并。
+本地先跑 `.venv\Scripts\python.exe -m pytest -q`；改过前端再跑 `npm.cmd run build`。
+
 ## 改哪儿的速查表
 
 | 你想做的事 | 必须改的文件 | 还要补 |

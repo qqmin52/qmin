@@ -1,5 +1,7 @@
 # Qmin（简Q）
 
+![CI](https://github.com/qqmin52/qmin/actions/workflows/ci.yml/badge.svg)
+
 极简 QQ 官方机器人框架：官方 API 零封号、装饰器写插件、自带 Web 面板，半小时跑通。
 
 官网：<https://yf9d.com> · 交流群：[Qmin（简Q）交流群](https://qm.qq.com/q/TdRqj1JjSm)（群号 1058165303）

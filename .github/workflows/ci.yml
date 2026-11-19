@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    name: pytest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.11", "3.13"]
+        exclude:
+          # Windows 只跑 3.11，控制总时长
+          - os: windows-latest
+            python: "3.13"
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python ${{ matrix.python }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: 升级 pip
+        run: python -m pip install --upgrade pip
+
+      - name: 安装项目与开发依赖
+        run: pip install -e ".[dev]"
+
+      - name: 运行测试
+        run: python -m pytest -q
+
+  webui:
+    name: webui
+    runs-on: ubuntu-latest
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: webui/package-lock.json
+
+      - name: 安装前端依赖
+        working-directory: webui
+        run: npm ci
+
+      - name: 构建前端
+        working-directory: webui
+        run: npm run build
+
+  no-secrets:
+    name: no-secrets
+    runs-on: ubuntu-latest
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 检查敏感文件未被提交
+        run: |
+          bad=$(git ls-files | grep -E '(^|/)\.env$|\.db$|api/static/' || true)
+          if [ -n "$bad" ]; then
+            echo "::error::仓库中不应包含 .env / 数据库 / 前端构建产物："
+            echo "$bad"
+            exit 1
+          fi
+          echo "未发现 .env、数据库或 api/static/ 构建产物"
